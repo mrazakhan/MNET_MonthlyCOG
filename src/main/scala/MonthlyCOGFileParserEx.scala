@@ -38,10 +38,6 @@ class MyRegistrator extends KryoRegistrator {
 }
 
 class MonthlyCOG extends Serializable{
-
-
-
-
 	
 def initDistrictsProvinceMap(sc:SparkContext,fileName:String,districtIndex:Int,provinceIndex:Int, delimiter:String=",")={
 
@@ -52,12 +48,8 @@ def initDistrictsProvinceMap(sc:SparkContext,fileName:String,districtIndex:Int,p
 }
 
 def parseDouble(s: String) = try { Some(s.toDouble) } catch { case _ => None }
-
-
-
 def initDistrictsLocMap( sc:SparkContext,fileName:String, districtIndex:Int,  latIndex:Int,  lngIndex:Int,delimiter:String=",")={
         var dlFile=sc.textFile(fileName).map(line=>(new DSV(line,",")))
-        //var dlFiltered=dlFile.filter(d=>(d.parts(0).contains("ID")==false))
         
         dlFile.filter(p=>((p.parts(0).contains("ID")==false)&&(parseDouble(p.parts(latIndex))!=None)&&(parseDouble(p.parts(lngIndex))!=None))).map(p=>(p.parts(districtIndex),(p.parts(latIndex).toDouble,p.parts(lngIndex).toDouble))).collect()
         
@@ -94,15 +86,6 @@ def assignDistrictProvince(sc:SparkContext,lat: Double, lng:Double, distProvince
      (dist,province)
      
 }
-
-def firstLocation(sc:SparkContext,dateLoc:Iterable[(String,String,String)])={
-
-        var dateLocRdd=sc.parallelize(dateLoc.toList)
-
-     dateLocRdd.map(dl=>(dl._1,(dl._2.toDouble,dl._3.toDouble))).sortByKey(true).take(1)(0)._2
-
-}
-	
 	def cog2(s:Iterable[(String,String)])={
      		//s.foreach(println(._1+._2))
 		 s.foreach(a=>println(a._1+" "+a._2))
@@ -177,44 +160,31 @@ var distProvinceMap=mc.initDistrictsProvinceMap(sc,inputPath+"Districts.csv",1,2
 
 var distLocMap=mc.initDistrictsLocMap(sc,inputPath+"Towers2.csv",4,3,2)
 
-		var latIndex=11
-		var lngIndex=12
+		var latIndex=6
+		var lngIndex=7
 	
+/* Input File Format
+L24356882,060314,6pm-8am,095,None,None,-1.7974202800000008,30.4099454,1
+L08749652,060319,6pm-8am,010,None,None,-1.6758302900000002,29.22216666,1
+L60858692,060317,6pm-8am,002,None,None,0.0,0.0,1
+L89355411,060315,6pm-8am,094,None,None,0.0,0.0,1
 
+ */
 
 var dsvData = sc.textFile(inputPath+inputFileName,10).map(line=>(new DSV(line,","))).filter(d=>(
                         d.parts(latIndex)!="NaN" &&d.parts(lngIndex)!="NaN"))
-	//dsvData.persist(storage.StorageLevel.MEMORY_ONLY_SER)
- var fl=dsvData.map(d=>(d.parts(1),(d.parts(0),d.parts(latIndex),d.parts(lngIndex)))).groupByKey().collectAsMap().map{case (k,v)=>(k,mc.firstLocation(sc,v))}
                 
 
-var gravity=dsvData.map(d=>(d.parts(1),(d.parts(latIndex),d.parts(lngIndex)))).groupByKey().map{case (k,v)=>(k,mc.cog2(v))}
-	//gravity.persist(storage.StorageLevel.MEMORY_ONLY_SER)
-      	        //var first = sc.parallelize(fl.toSeq)
-
-                //var firstLoc=first.map{case(k,v)=>(k,(mc.assignDistrictProvince(sc,v._1,v._2, distProvinceMap,distLocMap)))}
-                
+var gravity=dsvData.map(d=>(d.parts(0),(d.parts(latIndex),d.parts(lngIndex)))).groupByKey().map{case (k,v)=>(k,mc.cog2(v))}
       
-                var gravityLoc=gravity.map{case(k,v)=>(k,(mc.assignDistrictProvince(sc,v._1,v._2,distProvinceMap,distLocMap)))}
-               //var result=firstLoc.join(gravityLoc)
+    var gravityLoc=gravity.map{case(k,v)=>(k,(mc.assignDistrictProvince(sc,v._1,v._2,distProvinceMap,distLocMap)))}
 		
 		var result=gravityLoc.join(gravity)	
-	//result.persist(storage.StorageLevel.MEMORY_ONLY_SER)	
 		//Subscriber, District, Province, Lat, Long
 		var flatResult=result.map{case(k,v)=>(k,v._1._1,v._1._2,v._2._1,v._2._2)}
 
 		flatResult.saveAsTextFile(outputPath+outputFileName)
 
-		//result.foreach(println)
-                //println("Results processed"+result.count())
-
-		//result.saveAsTextFile(outputPath+outputFileName)
-		
-		//var distanceresult=first.join(gravity)
-
-		//var distanceresult2=distanceresult.map{case(k,v)=>(k,(v._1._1,v._1._2,v._2._1,v._2._2,new Location(v._1._1,v._1._2).distance(new Location(v._2._1,v._2._2))))}
-
-		//distanceresult2.saveAsTextFile(outputPath+outputFileName+"dr")
 
 	} 
 }
